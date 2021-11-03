@@ -21,6 +21,8 @@ message(${aris_DIR})
 message(${aris_INCLUDE_DIRS})
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/demo/demo1)
+add_subdirectory(${PROJECT_SOURCE_DIR}/demo/demo2)
+add_subdirectory(${PROJECT_SOURCE_DIR}/demo/demo3)
 
 
 
