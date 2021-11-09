@@ -8,6 +8,11 @@ using namespace std;
 //生成梯形曲线0->1
 //输入：时间，每毫秒计数一次
 //输出：当前时刻s的值
+/**
+ * @brief TCurve::getTCurve
+ * @param count
+ * @return
+ */
 auto TCurve::getTCurve(int count)->double
 {
 	//double ta = p.ta_;

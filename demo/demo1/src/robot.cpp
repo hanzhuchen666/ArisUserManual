@@ -17,9 +17,9 @@ namespace robot
 // 单关节正弦往复轨迹 //
 struct MoveJSParam
 {
-    double j1;
-    double time;
-    uint32_t timenum;
+    double j1; //!<正弦函数幅值
+    double time; //!<正弦函数周期
+    uint32_t timenum; //!<正弦函数周期数
 };
 auto MoveJS::prepareNrt()->void
 {
@@ -35,6 +35,7 @@ auto MoveJS::prepareNrt()->void
         {
             if (p.second == "current_pos")
             {
+                //检测到j1对应的字符为"current_pos",把幅值定位当前电机的位置
                 param.j1 = controller()->motionPool()[0].actualPos();
             }
             else
@@ -63,8 +64,8 @@ auto MoveJS::executeRT()->int
     auto &param = std::any_cast<MoveJSParam&>(this->param());
     auto time = static_cast<int32_t>(param.time * 1000);
     auto totaltime = static_cast<int32_t>(param.timenum * time);
-    static double begin_pjs;
-    static double step_pjs;
+    static double begin_pjs;  //开始时刻的位置
+    static double step_pjs;   //随count()值变化的增量
     // 访问主站 //
     auto &cout = controller()->mout();
 
@@ -73,12 +74,13 @@ auto MoveJS::executeRT()->int
         // 获取当前起始点位置 //
         if (count() == 1)
         {
+            //如果不加判断，则每次都会重新赋值为当前的位置，则无法保存初始时刻的位置
             begin_pjs = controller()->motionPool()[0].actualPos();
             step_pjs = controller()->motionPool()[0].actualPos();
-            this->master()->logFileRawName("moveJS");//建立记录数据的文件夹
+            this->master()->logFileRawName("moveJS");//建立记录数据的文件,在build文件夹中的log文件夹中生成
         }
         step_pjs = begin_pjs + param.j1 * (1 - std::cos(2 * PI*count() / time)) / 2;
-        controller()->motionPool().at(0).setTargetPos(step_pjs);
+        controller()->motionPool().at(0).setTargetPos(step_pjs);//给电机发送位置，让电机转到指定位置
     }
     else if ((time / 2 < count()) && (count() <= totaltime - time / 2))
     {
@@ -107,6 +109,7 @@ auto MoveJS::executeRT()->int
     // 打印 //
     if (count() % 10 == 0)
     {
+        //mout()函数，与cout同理，在终端打印数据
         mout() << "pos" << ":" << controller()->motionAtAbs(0).actualPos() << "\t";
         mout() << "vel" << ":" << controller()->motionAtAbs(0).actualVel() << std::endl;
     }
@@ -115,8 +118,9 @@ auto MoveJS::executeRT()->int
 //    auto &lout = controller()->lout();
 //    lout << controller()->motionAtAbs(0).targetPos() << ",";
 //    lout << std::endl;
-    lout() << controller()->motionAtAbs(0).actualPos() <<"\t";
-    lout() << controller()->motionAtAbs(0).actualVel() <<std::endl;
+    //lout()往上面声明的"moveJS.txt"文件写入数据
+    lout() << controller()->motionAtAbs(0).actualPos() <<"\t";  //写入0号电机的实际位置
+    lout() << controller()->motionAtAbs(0).actualVel() <<std::endl; //写入0号电机的实际速度
 
     return totaltime - count();
 }
@@ -124,6 +128,9 @@ auto MoveJS::collectNrt()->void {}
 MoveJS::MoveJS(const std::string &name)
 {
     aris::core::fromXmlString(command(),
+     //运行后，输入moveJS指令名则依次通过prepareNrt,executeRT(return=0之后),collectNrt函数
+     //default是默认值，可在终端通过参数名修改
+     //例如：moveJS --j1=5 -t=2 -n=3  ,全称用-- 简称用-
         "<Command name=\"moveJS\">"
         "	<GroupParam>"
         "		<Param name=\"j1\" default=\"current_pos\"/>"
@@ -136,10 +143,10 @@ MoveJS::MoveJS(const std::string &name)
 
 
 
-//Tcurve
+//梯形曲线位置驱动，驱动单个电机在一个梯形曲线周期内走一段距离
 auto TcurveDrive::prepareNrt()->void
 {
-    cef_ = doubleParam("coefficient");
+    cef_ = doubleParam("coefficient");//给成员变量赋值
 
     for(auto &m:motorOptions()) m =
             aris::plan::Plan::NOT_CHECK_ENABLE |
@@ -152,12 +159,9 @@ auto TcurveDrive::executeRT()->int //进入实时线程
     if (count() == 1)
     {
         begin_angle[0] = controller()->motionPool()[0].actualPos();
-        this->master()->logFileRawName("TestMvj");//建立记录数据的文件夹
+        this->master()->logFileRawName("TestMvj");//建立记录数据的文件
     }
 
-//    std::int32_t digits;
-//    this->ecController()->motionPool()[0].readPdo(0x60fd, 0x00, digits);
-//    if(count()%200==0) mout() << std::hex << digits << std::endl;
 
 //  梯形曲线
     //mout()函数输出在终端上
@@ -182,6 +186,7 @@ auto TcurveDrive::collectNrt()->void {}
 TcurveDrive::TcurveDrive(const std::string &name) //构造函数
 {
     aris::core::fromXmlString(command(),
+       //test_mvj进入指令，参数为梯形曲线赋值，例如：test_mvj -k=2
        "<Command name=\"test_mvj\">"
         "	<Param name=\"coefficient\" default=\"1\" abbreviation=\"k\"/>"
         "</Command>");
@@ -193,7 +198,7 @@ TcurveDrive::~TcurveDrive() = default;  //析构函数
 //  速度模式
 auto VelDrive::prepareNrt()->void{
 
-    cef_ = doubleParam("coefficient");
+    cef_ = doubleParam("coefficient");//给成员变量赋值
 
     for(auto &m:motorOptions()) m =
             aris::plan::Plan::NOT_CHECK_ENABLE |
@@ -225,6 +230,7 @@ auto VelDrive::collectNrt()->void{}
 VelDrive::VelDrive(const std::string &name)
 {
     aris::core::fromXmlString(command(),
+       //test_vel进入指令，参数为正弦函数幅值，例如：test_vel -k=2
        "<Command name=\"test_vel\">"
         "	<Param name=\"coefficient\" default=\"1.0\" abbreviation=\"k\"/>"
         "</Command>");
@@ -238,15 +244,16 @@ auto createControllerMotor()->std::unique_ptr<aris::control::Controller>
 {
     std::unique_ptr<aris::control::Controller> controller(new aris::control::EthercatController);
 
+    //i<1为1个电机，如果是多个电机，修改为对应的值
     for (aris::Size i = 0; i < 1; ++i)
     {
 #ifdef ARIS_USE_ETHERCAT_SIMULATION
-        double pos_offset[2]
+        double pos_offset[3]
         {
             0,0,0,0,0,0
         };
 #else
-        double pos_offset[2]
+        double pos_offset[3]
         {
          //  1.900100
 
@@ -256,6 +263,7 @@ auto createControllerMotor()->std::unique_ptr<aris::control::Controller>
         {
             2000/PI,2000/PI,2000/PI
         };
+        //底层保护，不要轻易改变
         double max_pos[3] //最大位置
         {
             500*PI,500*PI,500*PI
@@ -275,7 +283,7 @@ auto createControllerMotor()->std::unique_ptr<aris::control::Controller>
 
         int phy_id[3]={0,1,2};
 
-
+       //xml配置文件，不要动
         std::string xml_str =
             "<EthercatMotor phy_id=\"" + std::to_string(phy_id[i]) + "\" product_code=\"0x00\""
             " vendor_id=\"0x00\" revision_num=\"0x00\" dc_assign_activate=\"0x0300\""
@@ -352,7 +360,7 @@ auto createPlanMotor()->std::unique_ptr<aris::plan::PlanRoot>
     plan_root->planPool().add<aris::plan::Start>();
     plan_root->planPool().add<aris::plan::Stop>();
 
-    //自己写的命令
+    //自己写的命令,每增加一个类，要在这里增加对应的类名，不然找不到命令
     plan_root->planPool().add<TcurveDrive>();
     plan_root->planPool().add<MoveJS>();
     plan_root->planPool().add<VelDrive>();
